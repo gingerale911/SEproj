@@ -45,7 +45,6 @@ DEFAULT_CONFIG = {
         "xss": False,
         "prompt_injection": True
     },
-    "use_trufflehog": True,
     "rag_enabled": True,
     "max_snippet_tokens": 2000,
     "model": "gpt-3.5-turbo",
@@ -141,27 +140,6 @@ def simple_rag_filter(hunks: Dict[str, List[Dict[str, Any]]], checks: Dict[str, 
     return out
 
 
-def trufflehog_scan_enabled() -> bool:
-    # User may enable in config; truffleHog binary should exist if installed
-    return shutil.which("trufflehog") is not None
-
-
-def run_trufflehog_on_repo() -> List[Dict[str, Any]]:
-    """Run truffleHog scan for the repo and return findings as list of dicts."""
-    try:
-        proc = subprocess.run(["trufflehog", "--json", "."], capture_output=True, text=True, check=False)
-        out = proc.stdout.strip()
-        findings = []
-        for line in out.splitlines():
-            try:
-                j = json.loads(line)
-                findings.append(j)
-            except Exception:
-                continue
-        return findings
-    except Exception as e:
-        print("Failed to run truffleHog:", e, file=sys.stderr)
-        return []
 
 
 def build_prompt(snippets: Dict[str, List[Dict[str, Any]]], config: Dict[str, Any]) -> str:
@@ -345,27 +323,10 @@ def main():
     if config.get("rag_enabled"):
         snippets = simple_rag_filter(hunks, config.get("checks", {}))
 
-    # Optionally run truffleHog and convert to findings
-    extra_findings = []
-    if config.get("use_trufflehog"):
-        try:
-            import shutil
-            if shutil.which("trufflehog"):
-                th = run_trufflehog_on_repo()
-                for t in th:
-                    extra_findings.append({
-                        "file": t.get("path") or t.get("File"),
-                        "line": 1,
-                        "vulnerability_type": "secret/credential",
-                        "suggestion": "Secrets detected by truffleHog; rotate and remove from repo."
-                    })
-        except Exception:
-            pass
 
     prompt = build_prompt(snippets, config)
     raw = call_llm(prompt, config)
     findings = format_findings(raw)
-    findings.extend(extra_findings)
     write_results(findings, args.output)
     #hi
     # Post PR comment if running in GitHub Actions
