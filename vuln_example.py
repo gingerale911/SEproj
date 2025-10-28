@@ -9,6 +9,7 @@ conn.execute(query)
 
 # --- Hardcoded secret/API key ---
 AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
+LAWS_SECRET2 = "AKIAIOSFODNN7EXAMPLLE"
 
 # --- XSS vulnerability ---
 def render_html(user_input):
