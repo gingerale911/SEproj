@@ -283,14 +283,21 @@ def post_pr_comments(findings: List[Dict[str, Any]]):
 
     url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"}
-    body = json.dumps({
-        "body": render_pr_comment(findings)
-    })
-    r = requests.post(url, headers=headers, data=body)
-    if r.status_code >= 200 and r.status_code < 300:
+    # Always post a 'hi' comment first
+    hi_body = json.dumps({"body": "hi"})
+    r1 = requests.post(url, headers=headers, data=hi_body)
+    if r1.status_code >= 200 and r1.status_code < 300:
+        print("Posted hi PR comment")
+    else:
+        print("Failed to post hi PR comment:", r1.status_code, r1.text, file=sys.stderr)
+
+    # Then post the normal findings or a completion message
+    body = json.dumps({"body": render_pr_comment(findings)})
+    r2 = requests.post(url, headers=headers, data=body)
+    if r2.status_code >= 200 and r2.status_code < 300:
         print("Posted PR comment")
     else:
-        print("Failed to post PR comment:", r.status_code, r.text, file=sys.stderr)
+        print("Failed to post PR comment:", r2.status_code, r2.text, file=sys.stderr)
 
 
 def render_pr_comment(findings: List[Dict[str, Any]]) -> str:
