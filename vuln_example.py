@@ -12,6 +12,8 @@ conn.execute(query)
 # Hardcoded secret/API key
 API_KEY = "h85h93g9h38h39h"
 API_KEY = "hskfdubojfbviub"
+API_KEY = "h85h93g9h38h39h"
+API_KEY = "hskfdubojfbviub"
 # XSS vulnerability (for web context)
 def render_comment(user_comment):
     return f"<div>{user_comment}</div>"  # No sanitization
