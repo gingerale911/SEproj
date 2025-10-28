@@ -367,7 +367,7 @@ def main():
     findings = format_findings(raw)
     findings.extend(extra_findings)
     write_results(findings, args.output)
-
+    #hi
     # Post PR comment if running in GitHub Actions
     post_pr_comments(findings)
 
