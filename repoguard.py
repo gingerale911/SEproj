@@ -50,6 +50,7 @@ DEFAULT_CONFIG = {
     "max_snippet_tokens": 2000,
     "model": "gpt-3.5-turbo",
     "llm_endpoint": "",  # optional local endpoint
+    "provider": "openai"  # can be 'openai', 'google', or 'local'
 }
 
 
@@ -179,39 +180,70 @@ def build_prompt(snippets: Dict[str, List[Dict[str, Any]]], config: Dict[str, An
     return "\n---\n".join(parts)
 
 
-def call_llm(prompt: str, config: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Call OpenAI or a local LLM endpoint. Expect the LLM to respond with JSON array.
 
-    This function is intentionally tolerant: if the model returns non-JSON we try to extract JSON.
-    """
+def call_llm(prompt: str, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Call OpenAI, Google AI Studio, or a local LLM endpoint. Expect the LLM to respond with JSON array."""
+    provider = config.get("provider", "openai").lower()
     llm_endpoint = config.get("llm_endpoint") or os.environ.get("LLM_ENDPOINT")
     openai_key = os.environ.get("OPENAI_API_KEY")
+    google_key = os.environ.get("GOOGLE_API_KEY")
     model = config.get("model", "gpt-3.5-turbo")
-    if openai_key and openai:
-        openai.api_key = openai_key
-        try:
-            resp = openai.ChatCompletion.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": "You are a security code reviewer."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0
-            )
-            text = resp.choices[0].message.content
-        except Exception as e:
-            print("OpenAI call failed:", e, file=sys.stderr)
+    text = None
+
+    if provider == "openai":
+        if openai_key and openai:
+            openai.api_key = openai_key
+            try:
+                resp = openai.ChatCompletion.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are a security code reviewer."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0
+                )
+                text = resp.choices[0].message.content
+            except Exception as e:
+                print("OpenAI call failed:", e, file=sys.stderr)
+                return []
+        else:
+            print("No OpenAI API key or openai package not installed.", file=sys.stderr)
             return []
-    elif llm_endpoint:
+    elif provider == "google":
+        if not google_key:
+            print("No GOOGLE_API_KEY set in environment.", file=sys.stderr)
+            return []
+        # Use the model specified in config (default: gemini-pro, can be gemini-2.5-flash-lite, etc.)
+        model_name = config.get("model", "gemini-pro")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+        }
+        params = {"key": google_key}
         try:
-            r = requests.post(llm_endpoint, json={"prompt": prompt, "max_tokens": 800})
+            r = requests.post(url, headers=headers, params=params, json=payload)
             r.raise_for_status()
-            text = r.text
+            resp = r.json()
+            # Extract text from response (Gemini returns candidates)
+            text = resp.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
         except Exception as e:
-            print("Local LLM call failed:", e, file=sys.stderr)
+            print("Google AI Studio call failed:", e, file=sys.stderr)
+            return []
+    elif provider == "local":
+        if llm_endpoint:
+            try:
+                r = requests.post(llm_endpoint, json={"prompt": prompt, "max_tokens": 800})
+                r.raise_for_status()
+                text = r.text
+            except Exception as e:
+                print("Local LLM call failed:", e, file=sys.stderr)
+                return []
+        else:
+            print("No local LLM endpoint configured.", file=sys.stderr)
             return []
     else:
-        print("No LLM configured: set OPENAI_API_KEY or LLM_ENDPOINT", file=sys.stderr)
+        print(f"Unknown provider: {provider}", file=sys.stderr)
         return []
 
     # try to extract JSON array
@@ -220,7 +252,7 @@ def call_llm(prompt: str, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         j = json.loads(text)
     except Exception:
         # attempt to find first JSON array in text
-        m = re.search(r"(\[\s*\{.*\}\s*\])", text, re.S)
+        m = re.search(r"(\[\s*\{.*\}\s*\])", text or "", re.S)
         if m:
             try:
                 j = json.loads(m.group(1))
