@@ -1,20 +1,35 @@
-# Example file with intentional vulnerabilities for RepoGuard-AI testing
 
+# --- SQL Injection (classic) ---
 import sqlite3
-import os
-
-# SQL Injection vulnerability
-user_id = input("Enter user id: ")
+user = input("Username: ")
+password = input("Password: ")
 conn = sqlite3.connect('users.db')
-query = f"SELECT * FROM users WHERE id = {user_id}"
+query = "SELECT * FROM users WHERE username = '" + user + "' AND password = '" + password + "'"
 conn.execute(query)
 
-# Hardcoded secret/API key
-API_KEY = "h85h93g9h38h39h"
-API_KEY = "hskfdubojfbviub"
-# XSS vulnerability (for web context)
-def render_comment(user_comment):
-    return f"<div>{user_comment}</div>"  # No sanitization
+# --- Hardcoded secret/API key ---
+AWS_SECRET = "AKIAIOSFODNN7EXAMPLE"
 
-# Prompt injection vulnerability
-prompt = f"You are a helpful assistant. User says: {input('Say something: ')}"
+# --- XSS vulnerability ---
+def render_html(user_input):
+    return f"<div>{user_input}</div>"  # No sanitization
+
+# --- Command Injection ---
+import os
+filename = input("Enter filename to list: ")
+os.system("ls " + filename)
+
+# --- Insecure Deserialization ---
+import pickle
+data = input("Paste pickle data: ")
+obj = pickle.loads(bytes(data, 'utf-8'))
+
+# --- Path Traversal ---
+def read_file():
+    path = input("Enter file path: ")
+    with open("uploads/" + path, "r") as f:
+        return f.read()
+
+# --- Prompt Injection ---
+user_msg = input("Say something to the AI: ")
+prompt = f"You are a helpful assistant. User says: {user_msg}"
