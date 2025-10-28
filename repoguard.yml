@@ -1,0 +1,22 @@
+# RepoGuard-AI configuration
+# Enable or disable checks and optional features.
+checks:
+  sqli: true
+  secrets: true
+  xss: false
+  prompt_injection: true
+
+# If true, attempt to run truffleHog pre-scan (must be installed in environment)
+use_trufflehog: true
+
+# Retrieval / RAG behavior: keep only likely-relevant snippets to keep LLM token usage low
+rag_enabled: true
+
+# LLM model to use (if using OpenAI)
+model: "gpt-3.5-turbo"
+
+# Optional: set to your local LLM inference endpoint (takes priority over OpenAI key if set)
+llm_endpoint: ""
+
+# Maximum tokens to send per snippet (informational; the script uses heuristics)
+max_snippet_tokens: 2000
