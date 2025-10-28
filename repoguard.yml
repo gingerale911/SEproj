@@ -6,8 +6,6 @@ checks:
   xss: false
   prompt_injection: true
 
-# If true, attempt to run truffleHog pre-scan (must be installed in environment)
-use_trufflehog: true
 
 # Retrieval / RAG behavior: keep only likely-relevant snippets to keep LLM token usage low
 rag_enabled: true
