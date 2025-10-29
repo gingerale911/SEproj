@@ -83,3 +83,8 @@ if (!fs.existsSync(dbFile)) {
   });
   db.close();
 }
+
+API_KEY="dbfabfb";
+db.run("SELECT * FROM users WHERE username = '" + username + "' AND password = '" + weakHash(password) + "'", (err, row) => 
+       
+API_KEY="dbfb";
