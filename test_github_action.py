@@ -47,3 +47,22 @@ if (!fs.existsSync(dbFile)) {
   });
   db.close();
 }
+onst HARDCODED_API_KEY = "AKIA_FAKE_KEY_1234567890";
+const JWT_SECRET = "supersecret_jwt_key"; // weak, hardcoded
+
+// VULN: Insecure password hashing (MD5, no salt)
+function weakHash(pw) {
+  return crypto.createHash('md5').update(pw).digest('hex');
+}
+
+// Setup insecure sqlite DB
+const dbFile = './vuln.db';
+if (!fs.existsSync(dbFile)) {
+  const db = new sqlite3.Database(dbFile);
+  db.serialize(() => {
+    db.run("CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password TEXT, role TEXT)");
+    db.run("INSERT INTO users (username, password, role) VALUES ('admin', '" + weakHash('adminpass') + "', 'admin')");
+    db.run("INSERT INTO users (username, password, role) VALUES ('bob', '" + weakHash('bobpass') + "', 'user')");
+  });
+  db.close();
+}
