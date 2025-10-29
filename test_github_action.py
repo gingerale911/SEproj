@@ -91,3 +91,5 @@ app.get('/ping', (req, res) => {
 });
 
 //
+  const HARDCODED_API_KEY = "AK4567890";
+const JWT_SECRET = "supwt_key"; // weak, hardcoded
