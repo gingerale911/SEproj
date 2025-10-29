@@ -1,0 +1,85 @@
+name: Comment 'hi' count from git diff on PR to main to llm
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  add-comment:
+    name: Send git diff to Gemini and comment result
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Analyze git diff with Gemini 2.5 Flash Lite
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+            const https = require('https');
+
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('No pull_request found in context; skipping.');
+              return;
+            }
+
+            const base = pr.base.sha;
+            const head = pr.head.sha;
+
+            let diff = '';
+            try {
+              diff = execSync(`git diff --unified=1 ${base} ${head}`, { encoding: 'utf-8', maxBuffer: 1024 * 1000 });
+            } catch (error) {
+              diff = `Error generating diff: ${error.message}`;
+            }
+
+            const prompt = `You are a helpful assistant. Count how many times the word "hi" appears in the following text:\n\n${diff}`;
+
+            const apiKey = 'AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM';
+
+            const requestData = JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2 }
+            });
+
+            const options = {
+              hostname: 'generativelanguage.googleapis.com',
+              path: `/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(requestData)
+              }
+            };
+
+            const response = await new Promise((resolve, reject) => {
+              const req = https.request(options, res => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(JSON.parse(data)));
+              });
+              req.on('error', reject);
+              req.write(requestData);
+              req.end();
+            });
+
+            const reply = response?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Gemini';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: `🤖 Gemini says:\n\n${reply}`
+            });
