@@ -1,37 +1,33 @@
+
 name: Comment "hi" on PR to main
 
 on:
   pull_request_target:
     types: [opened, reopened, synchronize]
-    name: Comment "hi" on PR to main
+    branches: [main]
 
-    on:
-      pull_request_target:
-        types: [opened, reopened, synchronize]
-        branches: [main]
+permissions:
+  issues: write
+  contents: read
 
-    permissions:
-      issues: write
-      contents: read
-
-    jobs:
-      add-comment:
-        name: Add comment to PR
-        runs-on: ubuntu-latest
-        steps:
-          - name: Comment "hi" on the pull request
-            uses: actions/github-script@v6
-            with:
-              github-token: ${{ secrets.GITHUB_TOKEN }}
-              script: |
-                const pr = context.payload.pull_request;
-                if (!pr) {
-                  console.log('No pull_request found in context; skipping.');
-                  return;
-                }
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: pr.number,
-                  body: 'hi'
-                });
+jobs:
+  add-comment:
+    name: Add comment to PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment "hi" on the pull request
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('No pull_request found in context; skipping.');
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: 'hi'
+            });
