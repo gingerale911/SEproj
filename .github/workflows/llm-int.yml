@@ -1,4 +1,4 @@
-name: Comment 'hi' count from git diff on PR to main
+name: Comment security issues from git diff on PR to main
 
 on:
   pull_request_target:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   add-comment:
-    name: Send git diff to Gemini and comment result
+    name: Analyze git diff for security vulnerabilities
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR code
@@ -45,7 +45,7 @@ jobs:
               diff = `Error generating diff: ${error.message}`;
             }
 
-            const prompt = `You are a helpful assistant. Count how many times the word "hi" appears in the following text:\n\n${diff}`;
+            const prompt = `You are a security-focused code reviewer. Analyze the following git diff for any security vulnerabilities such as exposed API keys, SQL injection risks, or other common security flaws. If any issues are found, explain them clearly. If none are found, respond with "✅ Clean code – no security issues detected."\n\n${diff}`;
 
             const apiKey = 'AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM';
 
@@ -81,5 +81,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `🤖 Gemini says:\n\n${reply}`
+              body: `🔐 Security Review by Gemini:\n\n${reply}`
             });
