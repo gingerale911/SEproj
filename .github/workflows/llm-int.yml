@@ -45,7 +45,7 @@ jobs:
               diff = `Error generating diff: ${error.message}`;
             }
 
-            const prompt = `You are a security-focused code reviewer. Analyze the following git diff for any security vulnerabilities such as exposed API keys, SQL injection risks, or other common security flaws. If any issues are found, explain them clearly. If none are found, respond with "✅ Clean code – no security issues detected."\n\n${diff}`;
+            const prompt = `You are a devsecops code reviewer. Analyze the following git diff for any security vulnerabilities such as exposed API keys, SQL injection risks, or other common security flaws. If any issues are found, explain them concisely like a robot. If none are found, respond with "Clean code – no security issues detected."\n\n${diff}`;
 
             const apiKey = 'AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM';
 
@@ -81,5 +81,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `🔐 Security Review by Gemini:\n\n${reply}`
+              body: `Review by the Dev Sec Model:\n\n${reply}`
             });
