@@ -11,5 +11,8 @@ buri buri buri buri buria
 
 blum blum shub
 
+gheorgpoewrbfisb
+wnbgvpiysdbv'
+
 
 i hardcoded api key
