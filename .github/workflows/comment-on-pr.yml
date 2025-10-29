@@ -23,8 +23,16 @@ jobs:
       - name: Get git diff
         id: diff
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > diff.txt
+          # Ensure base branch is available
+          git fetch origin +refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+          # Fetch PR head via the pull ref (works for forks and branches)
+          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/${{ github.event.pull_request.number }}
+
+          # Produce the diff between base and PR head
+          git diff refs/remotes/origin/${{ github.event.pull_request.base.ref }} refs/remotes/pr/${{ github.event.pull_request.number }} > diff.txt
+
+          # Limit what we expose to GITHUB_ENV (same behaviour as before)
           echo "DIFF<<EOF" >> $GITHUB_ENV
           head -c 4000 diff.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
