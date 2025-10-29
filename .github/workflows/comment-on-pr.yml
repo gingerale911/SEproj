@@ -13,34 +13,58 @@ permissions:
 
 jobs:
   add-comment:
-    name: Add comment to PR
     runs-on: ubuntu-latest
     steps:
-        - name: Check out repository
-          uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Get git diff
         id: diff
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > diff.txt
-          echo "::set-output name=diff::$(cat diff.txt | head -c 5000)"
+          echo "DIFF<<EOF" >> $GITHUB_ENV
+          head -c 4000 diff.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-      - name: Comment with git diff
+      - name: Get acknowledgement from Gemini
+        id: gemini
+        run: |
+          python3 <<EOF
+          import os
+          import requests
+          diff = os.environ.get('DIFF', 'No diff found.')
+          token = os.environ['GEMINI_API_TOKEN']
+          url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + token
+          payload = {
+              "contents": [{"parts": [{"text": f"Please acknowledge the following git diff:\n{diff}"}]}]
+          }
+          resp = requests.post(url, json=payload)
+          try:
+              ack = resp.json()['candidates'][0]['content']['parts'][0]['text']
+          except Exception:
+              ack = "Could not get acknowledgement from Gemini."
+          with open("ack.txt", "w") as f:
+              f.write(ack)
+          EOF
+
+      - name: Comment with Gemini acknowledgement
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
             const pr = context.payload.pull_request;
             if (!pr) {
               console.log('No pull_request found in context; skipping.');
               return;
             }
-            const diff = process.env.DIFF || "No diff found.";
+            const ack = fs.readFileSync('ack.txt', 'utf8');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `Git diff of changes (truncated to 5000 chars):\n\n${diff}`
+              body: `Gemini LLM acknowledgement:\n\n${ack}`
             });
         env:
-          DIFF: ${{ steps.diff.outputs.diff }}
+          GEMINI_API_TOKEN: ${{ secrets.GEMINI_API_TOKEN }}
