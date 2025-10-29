@@ -1,0 +1,57 @@
+name: Comment git diff on PR to main
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  add-comment:
+    name: Add git diff as comment to PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0  # Needed to access base commit
+
+      - name: Get git diff and comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('No pull_request found in context; skipping.');
+              return;
+            }
+
+            const base = pr.base.sha;
+            const head = pr.head.sha;
+
+            let diff = '';
+            try {
+              diff = execSync(`git diff --unified=1 ${base} ${head}`, { encoding: 'utf-8', maxBuffer: 1024 * 1000 });
+            } catch (error) {
+              diff = `Error generating diff: ${error.message}`;
+            }
+
+            // Truncate if too long for GitHub comment
+            const maxLength = 65000;
+            const commentBody = diff.length > maxLength
+              ? `Diff is too long to display completely. Showing first ${maxLength} characters:\n\n\`\`\`diff\n${diff.slice(0, maxLength)}\n\`\`\``
+              : `\`\`\`diff\n${diff}\n\`\`\``;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: commentBody
+            });
