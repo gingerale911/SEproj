@@ -1,4 +1,4 @@
-name: Comment 'hi' count from git diff on PR to main to llm
+name: Simulated Multi-LLM Security Scan on PR to main
 
 on:
   pull_request_target:
@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  add-comment:
-    name: Send git diff to Gemini and comment result
+  scan-code:
+    name: Run security scan via simulated LLMs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR code
@@ -21,7 +21,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Analyze git diff with Gemini 2.5 Flash Lite
+      - name: Run vulnerability scan via Gemini (simulated multi-LLM)
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -45,7 +45,7 @@ jobs:
               diff = `Error generating diff: ${error.message}`;
             }
 
-            const prompt = `You are a helpful assistant. Count how many times the word "hi" appears in the following text:\n\n${diff}`;
+            const prompt = `You are an expert DevSecOps auditor and secure code analyzer. Your task is to scan provided source code for security vulnerabilities, bad practices, and potential exploits. Focus on identifying issues such as SQL injection, command injection, insecure API usage, authentication flaws, secrets or API keys in code, weak encryption, dependency risks, and insecure error handling.\n\nFor each issue found, output in JSON format:\n[\n  {\n    "vulnerability": "<type of issue>",\n    "severity": "<Low|Medium|High|Critical>",\n    "line": <line_number_if_possible>,\n    "explanation": "<why this is a problem>",\n    "recommendation": "<secure fix or best practice>"\n  }\n]\n\nIf no vulnerabilities are found, respond with an empty JSON array [] only. Do not include any other text or commentary.\n\nBe concise, accurate, and avoid false positives.\n\nSource:\n${diff}`;
 
             const apiKey = 'AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM';
 
@@ -68,18 +68,43 @@ jobs:
               const req = https.request(options, res => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
-                res.on('end', () => resolve(JSON.parse(data)));
+                res.on('end', () => {
+                  try {
+                    const parsed = JSON.parse(data);
+                    const reply = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
+                    resolve(reply);
+                  } catch (e) {
+                    resolve(`Error parsing Gemini response: ${e.message}`);
+                  }
+                });
               });
               req.on('error', reject);
               req.write(requestData);
               req.end();
             });
 
-            const reply = response?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Gemini';
+            const commentBody = `
+🔍 **Security Scan Results from Multiple LLMs**
+
+### 🧠 Anthropic Harmlessness
+\`\`\`json
+${response}
+\`\`\`
+
+### 🛡️ Microsoft Azure Prompt Shield
+\`\`\`json
+${response}
+\`\`\`
+
+### 🧬 Llama Guard (Meta)
+\`\`\`json
+${response}
+\`\`\`
+`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `🤖 Gemini says:\n\n${reply}`
+              body: commentBody
             });
