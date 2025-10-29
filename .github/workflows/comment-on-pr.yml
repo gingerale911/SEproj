@@ -13,68 +13,22 @@ permissions:
 
 jobs:
   add-comment:
+    name: Add comment to PR
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get git diff
-        id: diff
-        run: |
-          # Ensure base branch is available
-          git fetch origin +refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-          # Fetch PR head via the pull ref (works for forks and branches)
-          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pr/${{ github.event.pull_request.number }}
-
-          # Produce the diff between base and PR head
-          git diff refs/remotes/origin/${{ github.event.pull_request.base.ref }} refs/remotes/pr/${{ github.event.pull_request.number }} > diff.txt
-
-          # Limit what we expose to GITHUB_ENV (same behaviour as before)
-          echo "DIFF<<EOF" >> $GITHUB_ENV
-          head -c 4000 diff.txt >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-    - name: Get acknowledgement from Gemini
-    id: gemini
-    run: |
-      python3 <<EOF
-      import os
-      import requests
-      diff = os.environ.get('DIFF', 'No diff found.')
-      token = "AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM"
-      url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + token
-      payload = {
-        "contents": [{"parts": [{"text": f"Please acknowledge the following git diff:\n{diff}"}]}]
-      }
-      resp = requests.post(url, json=payload)
-      try:
-        ack = resp.json()['candidates'][0]['content']['parts'][0]['text']
-      except Exception:
-        ack = "Could not get acknowledgement from Gemini."
-      with open("ack.txt", "w") as f:
-        f.write(ack)
-      EOF
-
-      - name: Comment with Gemini acknowledgement
+      - name: Comment "hi" on the pull request
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
             const pr = context.payload.pull_request;
             if (!pr) {
               console.log('No pull_request found in context; skipping.');
               return;
             }
-            const ack = fs.readFileSync('ack.txt', 'utf8');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: pr.number,
-              body: `Gemini LLM acknowledgement:\n\n${ack}`
+              body: 'hi'
             });
-        env:
-          GEMINI_API_TOKEN: ${{ secrets.GEMINI_API_TOKEN }}
