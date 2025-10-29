@@ -1,7 +1,7 @@
-name: Simulated Multi-LLM Security Scan on PR to main
+name: Comment 'hi' count from git diff on PR to main
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, synchronize]
     branches: [main]
 
@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  scan-code:
-    name: Run security scan via simulated LLMs
+  add-comment:
+    name: Send git diff to Gemini and comment result
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR code
@@ -21,112 +21,65 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Run vulnerability scan via Gemini (simulated multi-LLM)
+      - name: Analyze git diff with Gemini 2.5 Flash Lite
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            (async () => {
-              const { execSync } = require('child_process');
-              const https = require('https');
+            const { execSync } = require('child_process');
+            const https = require('https');
 
-              const pr = context.payload.pull_request;
-              if (!pr) {
-                console.log('No pull_request found in context; skipping.');
-                return;
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('No pull_request found in context; skipping.');
+              return;
+            }
+
+            const base = pr.base.sha;
+            const head = pr.head.sha;
+
+            let diff = '';
+            try {
+              diff = execSync(`git diff --unified=1 ${base} ${head}`, { encoding: 'utf-8', maxBuffer: 1024 * 1000 });
+            } catch (error) {
+              diff = `Error generating diff: ${error.message}`;
+            }
+
+            const prompt = `You are a helpful assistant. Count how many times the word "hi" appears in the following text:\n\n${diff}`;
+
+            const apiKey = 'AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM';
+
+            const requestData = JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2 }
+            });
+
+            const options = {
+              hostname: 'generativelanguage.googleapis.com',
+              path: `/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(requestData)
               }
+            };
 
-              const base = pr.base.sha;
-              const head = pr.head.sha;
-
-              let diff = '';
-              try {
-                diff = execSync(`git diff --unified=1 ${base} ${head}`, {
-                  encoding: 'utf-8',
-                  maxBuffer: 1024 * 1000
-                });
-              } catch (error) {
-                diff = `Error generating diff: ${error.message}`;
-              }
-
-              const prompt = `You are an expert DevSecOps auditor and secure code analyzer. Your task is to scan provided source code for security vulnerabilities, bad practices, and potential exploits. Focus on identifying issues such as SQL injection, command injection, insecure API usage, authentication flaws, secrets or API keys in code, weak encryption, dependency risks, and insecure error handling.
-
-For each issue found, output in JSON format:
-[
-  {
-    "vulnerability": "<type of issue>",
-    "severity": "<Low|Medium|High|Critical>",
-    "line": <line_number_if_possible>,
-    "explanation": "<why this is a problem>",
-    "recommendation": "<secure fix or best practice>"
-  }
-]
-
-If no vulnerabilities are found, respond with an empty JSON array [] only. Do not include any other text or commentary.
-
-Be concise, accurate, and avoid false positives.
-
-Source:
-${diff}`;
-
-              const apiKey = 'AIzaSyDW7D_GLQWagUGZ3E2FrKRoPw9PKaGP6bM';
-
-              const requestData = JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.2 }
+            const response = await new Promise((resolve, reject) => {
+              const req = https.request(options, res => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => resolve(JSON.parse(data)));
               });
+              req.on('error', reject);
+              req.write(requestData);
+              req.end();
+            });
 
-              const options = {
-                hostname: 'generativelanguage.googleapis.com',
-                path: `/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Content-Length': Buffer.byteLength(requestData)
-                }
-              };
+            const reply = response?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Gemini';
 
-              const response = await new Promise((resolve, reject) => {
-                const req = https.request(options, res => {
-                  let data = '';
-                  res.on('data', chunk => data += chunk);
-                  res.on('end', () => {
-                    try {
-                      const parsed = JSON.parse(data);
-                      const reply = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-                      resolve(reply);
-                    } catch (e) {
-                      resolve(`Error parsing Gemini response: ${e.message}`);
-                    }
-                  });
-                });
-                req.on('error', reject);
-                req.write(requestData);
-                req.end();
-              });
-
-              const commentBody = `🔍 **Security Scan Results from Simulated Multi-LLMs**
-
-### 🧠 Gemini (Google)
-\`\`\`json
-${response}
-\`\`\`
-###hh
-### 🛡️ Simulated Anthropic Harmlessness
-\`\`\`json
-${response}
-\`\`\`
-
-### 🧬 Simulated Llama Guard (Meta)
-\`\`\`json
-${response}
-\`\`\`
-`;
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                body: commentBody
-              });
-            })();
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: `🤖 Gemini says:\n\n${reply}`
+            });
