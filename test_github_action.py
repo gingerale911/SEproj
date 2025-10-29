@@ -24,5 +24,6 @@ const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3');
 const HARDCODED_API_KEY = "AKIA34567890";
 const JWT_SECRET = "supersecret_jwt_key"; // weak, hardcoded
+API_KEY="dbfabfb";
 
 //
